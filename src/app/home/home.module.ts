@@ -4,6 +4,8 @@ import { IonicModule } from '@ionic/angular';
 import { FormsModule } from '@angular/forms';
 import { HomePage } from './home.page';
 
+import { BLE } from '@awesome-cordova-plugins/ble/ngx';
+
 import { HomePageRoutingModule } from './home-routing.module';
 
 
@@ -14,6 +16,9 @@ import { HomePageRoutingModule } from './home-routing.module';
     IonicModule,
     HomePageRoutingModule
   ],
-  declarations: [HomePage]
+  declarations: [HomePage],
+  providers: [
+    BLE
+  ]
 })
-export class HomePageModule {}
+export class HomePageModule { }
