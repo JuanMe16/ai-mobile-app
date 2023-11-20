@@ -13,7 +13,6 @@ export class HomePage implements OnInit {
   labelUUID = "2A21";
   deviceID: string = "";
   isDeviceConnected: boolean = false;
-  isModalOpen: boolean = false;
   isEnabled: boolean = false;
   inferResult: string = "Prueba";
 
@@ -50,17 +49,10 @@ export class HomePage implements OnInit {
   }
 
   connect() {
-    const connectedCb = () => {
+    this.bleService.connect(this.deviceID).subscribe(() => {
       this.isDeviceConnected = true;
       console.log("Dispositivo conectado.");
-    };
-
-    const disconnectedCb = () => {
-      this.isDeviceConnected = false;
-      console.log("Dispositivo desconectado");
-    }
-    
-    this.bleService.autoConnect(this.deviceID, connectedCb, disconnectedCb);
+    });
   }
 
   async readResponse() {
@@ -83,7 +75,10 @@ export class HomePage implements OnInit {
   }
 
   async disconnect() {
-    await this.bleService.disconnect(this.deviceID);
+    this.bleService.disconnect(this.deviceID).then(() => {
+      this.isDeviceConnected = false;
+      console.log("Dispositivo desconectado");
+    });
   }
 
   async startDeviceScanning() {
