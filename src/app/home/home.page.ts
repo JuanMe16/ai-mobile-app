@@ -8,75 +8,94 @@ import { AlertController } from '@ionic/angular';
   styleUrls: ['home.page.scss'],
 })
 export class HomePage implements OnInit {
-  deviceUUID: string = "";
-  isScanning: boolean = false;
+  serviceUUID = "2A19";
+  inferUUID = "2A20";
+  labelUUID = "2A21";
+  deviceID: string = "";
   isDeviceConnected: boolean = false;
   isModalOpen: boolean = false;
   isEnabled: boolean = false;
-  step: number = 1;
-  devicesList: any[] = [];
+  inferResult: string = "Prueba";
 
   constructor(
     private bleService: BLE,
     private alertController: AlertController
   ) { };
 
-  ngOnInit(): void {
-    this.verifyBluetooth();
-  }
-
-  async setOpenModal(value: boolean) {
-    if (value && !this.isEnabled) {
-      await this.verifyBluetooth();
-    } else {
-      this.isModalOpen = value;
-      if (this.isScanning) {
-        this.stopDeviceScanning();
-      } else {
-        this.startDeviceScanning();
-      }
-    };
+  async ngOnInit() {
+    await this.verifyBluetooth();
+    await this.startDeviceScanning();
   }
 
   createAlert(message: string) {
     return this.alertController.create({ message });
   };
 
-  handler(value: any) {
-    console.log(value);
+  string2ab(str: string) {
+    const buf = new ArrayBuffer(str.length * 2);
+    const bufView = new Uint16Array(buf);
+    for (var i = 0; i < str.length; i++) {
+      bufView[i] = str.charCodeAt(i);
+    }
+    return buf;
   }
 
-  connect(address: string) {
-    this.bleService.connect(address).subscribe(success => {
+  ab2string(buffer: ArrayBuffer) {
+    const bitsToTranslate = new Uint8Array(buffer);
+    let message = "";
+    for (var i = 0; i < bitsToTranslate.length; i++) {
+      message += String.fromCharCode(bitsToTranslate[i]);
+    }
+    return message;
+  }
+
+  connect() {
+    const connectedCb = () => {
       this.isDeviceConnected = true;
-      this.deviceUUID = address;
-      this.stopDeviceScanning();
-      console.log("Conectado a :", success);
-    });
+      console.log("Dispositivo conectado.");
+    };
+
+    const disconnectedCb = () => {
+      this.isDeviceConnected = false;
+      console.log("Dispositivo desconectado");
+    }
+    
+    this.bleService.autoConnect(this.deviceID, connectedCb, disconnectedCb);
   }
 
-  disconnect() {
-    this.bleService.disconnect(this.deviceUUID)
-    this.isDeviceConnected = false;
-    console.log("Dispositivo desconectado");
+  async readResponse() {
+    const bleResponse = await this.bleService.read(this.deviceID, this.serviceUUID, this.labelUUID);
+    const typedData = bleResponse as ArrayBuffer;
+    console.log("DATA OBTENIDA:", typedData);
+    const strInferred = this.ab2string(typedData);
+    console.log("Respuesta leída:", strInferred);
+    if (strInferred) this.inferResult = strInferred;
   }
 
-  startDeviceScanning() {
-    this.isScanning = true;
-    this.bleService.startScan([]).subscribe(device => {
-      console.log("DEVICE ENCONTRADO CAPO", JSON.stringify(device));
-      const deviceSimplification = { name: device.name ? device.name : '', id: device.id };
-      if (!this.devicesList.includes(deviceSimplification)) {
-        this.devicesList.push(deviceSimplification);
-      }
-    });
+  async sendInferRequest() {
+    await this.bleService.write(
+      this.deviceID,
+      this.serviceUUID,
+      this.inferUUID,
+      new ArrayBuffer(1)
+    ).then(() => this.readResponse())
+      .catch(() => console.log("Error enviando el comando de inferencia."));
+  }
+
+  async disconnect() {
+    await this.bleService.disconnect(this.deviceID);
+  }
+
+  async startDeviceScanning() {
+    if (this.isEnabled) {
+      console.log("Iniciando escaneo...");
+      this.bleService.startScan([this.serviceUUID]).subscribe(device => {
+        const deviceSimplification = { name: device.name ? device.name : '', id: device.id };
+        this.deviceID = deviceSimplification.id;
+        this.bleService.stopScan();
+      });
+    }
   };
-
-  stopDeviceScanning() {
-    this.isScanning = false;
-    this.isModalOpen = false;
-    this.bleService.stopScan();
-  }
 
   async verifyBluetooth() {
     return await this.bleService.isEnabled().then(async () => {
@@ -85,7 +104,7 @@ export class HomePage implements OnInit {
       successMessage.present();
       return true;
     }, async () => {
-      const errorMessage = await this.createAlert('❌ Encienda su bluetooth.');
+      const errorMessage = await this.createAlert('❌ Encienda su bluetooth y reinicie la aplicación.');
       errorMessage.present();
       return false;
     })
